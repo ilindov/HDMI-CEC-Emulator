@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
@@ -15,6 +16,8 @@ Display *display;
 unsigned int keycode;
 // FILE *log_file;
 int serial_port;
+pthread_t stop_thread_id;
+volatile int stop_pending = 0;
 
 void signal_handler (int signal) {
 	// fprintf(log_file, "Terminating... :)\n");
@@ -31,7 +34,15 @@ void hitKey(int key) {
 	XFlush(display);
 }
 
+void *kill_timer(void *args) {
+	stop_pending = 1;
+	sleep(10);
+	system("/usr/bin/flatpak kill tv.kodi.Kodi");
+	stop_pending = 0;
+}
+
 int main() {
+	printf("FOCUS_XXX\n");
 	signal(SIGTERM, signal_handler);
 
 	// log_file = fopen("/tmp/log.log", "a");
@@ -141,5 +152,24 @@ int main() {
 		else if (strcmp(read_buf, "KEY_GUIDE") == 0) {
 			hitKey(XK_E);
 		}
+		else if (strcmp(read_buf, "FOCUS_GAINED") == 0) {
+			if (stop_pending) {
+				pthread_kill(stop_thread_id, SIGKILL);
+			}
+			else {
+				if (system("flatpak ps | grep 'tv.kodi.Kodi'"))
+					system("env DISPLAY=:0 XAUTHORITY=/home/kodi/.Xauthority /usr/bin/flatpak run --branch=stable --arch=x86_64 --command=kodi tv.kodi.Kodi &");
+			}
+		}
+		else if (strcmp(read_buf, "FOCUS_LOST") == 0) {
+			if (!stop_pending) {
+				pthread_create(&stop_thread_id, NULL, kill_timer, NULL);
+			}
+			else {
+				pthread_kill(stop_thread_id, SIGKILL);
+				pthread_create(&stop_thread_id, NULL, kill_timer, NULL);
+			}
+		}
 	}
+	pthread_exit(NULL);
 }
