@@ -5,6 +5,9 @@
 #define MB_PWR_STATE_PIN 4
 #define MB_PWR_PIN 5
 
+#define FOCUS_GAINED 0x98
+#define FOCUS_LOST 0x99
+
 // ugly macro to do debug printing in the OnReceive method
 #define report(X) do { DbgPrint("report " #X "\n"); report ## X (); } while (0)
 
@@ -54,6 +57,9 @@ class MyCEC: public CEC_Device {
         case 0x72: Serial.println("KEY_TT_RED"); break;
         case 0x73: Serial.println("KEY_TT_GREEN"); break;     //
         case 0x74: Serial.println("KEY_TT_YELLOW"); break;
+        // HDMI focus gained/lost
+        case FOCUS_GAINED: Serial.println("FOCUS_GAINED"); break;
+        case FOCUS_LOST: Serial.println("FOCUS_LOST"); break;
       }
     }
         
@@ -63,20 +69,27 @@ class MyCEC: public CEC_Device {
       CEC_Device::OnReceive(source,dest,buffer,count);
       
       switch (buffer[0]) {
-        
+        // Power Off
         case 0x36:  DbgPrint("standby\n");
                     flagOff = true;
+                    handleKey(FOCUS_LOST);
                   break;
         case 0x44: handleKey(buffer[1]);
                   break;
         case 0x46: report(OSDName);
                   break;
+        // Power ON
         case 0x80: if (buffer[3] == phy1 && buffer[4] == phy2)
                     flagOn = true;
+                    if (buffer[3] == 0x10) handleKey(FOCUS_GAINED);
                   break;
         case 0x81:  if (buffer[1] == phy1 && buffer[2] == phy2)
                     flagOn = true;
+                    handleKey(FOCUS_GAINED);
                   break;
+        // Transition from HDMI input to TV
+        case 0x82:  flagOff = true;
+                    handleKey(FOCUS_LOST);
         case 0x83:  report(PhysAddr);
                   break;
 //        case 0x84:  if (source == 00 && !flagReported) { // TV is powered on
@@ -88,6 +101,8 @@ class MyCEC: public CEC_Device {
         case 0x86:  if (buffer[1] == phy1 && buffer[2] == phy2)
                     report(StreamState);
                     flagOn = true;
+                    if (buffer[1] == 0x15) handleKey(FOCUS_GAINED);
+                    if (buffer[1] == 0x20) handleKey(FOCUS_LOST);
                   break;
 //        case 0x87:  if (source == 00 && !flagReportedV) {// TV sends VendorID
 //                      report(VendorID);
