@@ -42,7 +42,6 @@ void *kill_timer(void *args) {
 }
 
 int main() {
-	printf("FOCUS_XXX\n");
 	signal(SIGTERM, signal_handler);
 
 	// log_file = fopen("/tmp/log.log", "a");
