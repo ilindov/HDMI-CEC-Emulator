@@ -27,6 +27,11 @@ void signal_handler (int signal) {
 	exit(0);
 }
 
+void thread_signal_handler (int signal) {
+	stop_pending = 0;
+	pthread_exit(NULL);
+}
+
 void hitKey(int key) {
 	keycode = XKeysymToKeycode(display, key);
 	XTestFakeKeyEvent(display, keycode, True, 0);
@@ -35,8 +40,9 @@ void hitKey(int key) {
 }
 
 void *kill_timer(void *args) {
+	signal(SIGTERM, thread_signal_handler);
 	stop_pending = 1;
-	sleep(10);
+	sleep(300);
 	system("/usr/bin/flatpak kill tv.kodi.Kodi");
 	stop_pending = 0;
 }
@@ -153,7 +159,7 @@ int main() {
 		}
 		else if (strcmp(read_buf, "FOCUS_GAINED") == 0) {
 			if (stop_pending) {
-				pthread_kill(stop_thread_id, SIGKILL);
+				pthread_kill(stop_thread_id, SIGTERM);
 			}
 			else {
 				if (system("flatpak ps | grep 'tv.kodi.Kodi'"))
@@ -165,7 +171,7 @@ int main() {
 				pthread_create(&stop_thread_id, NULL, kill_timer, NULL);
 			}
 			else {
-				pthread_kill(stop_thread_id, SIGKILL);
+				pthread_kill(stop_thread_id, SIGTERM);
 				pthread_create(&stop_thread_id, NULL, kill_timer, NULL);
 			}
 		}
